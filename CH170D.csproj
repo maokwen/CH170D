@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <OutputType>Exe</OutputType>
+    <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -10,5 +10,6 @@
   <ItemGroup>
     <PackageReference Include="HidSharp" Version="2.6.4" />
     <PackageReference Include="LibreHardwareMonitorLib" Version="0.9.6" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="10.0.8" />
   </ItemGroup>
 </Project>
