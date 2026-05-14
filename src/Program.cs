@@ -2,8 +2,6 @@ using System.Runtime.InteropServices;
 using LibreHardwareMonitor.Hardware;
 using HidSharp;
 using System.ServiceProcess;
-using Microsoft.Extensions.Hosting;
-using System.Threading.Tasks;
 
 DeepCoolService service = new DeepCoolService();
 
@@ -78,7 +76,7 @@ class DeepCoolService : ServiceBase {
 			var checksum = Checksum();
 			_bytes[0x28] = checksum;
 			_packet.SetChecksum(checksum);
-			Console.WriteLine(_packet);
+			LogPacket(_packet);
 			_hidStream!.Write(_bytes);
 		} catch (Exception) {
 			ResetDevice();
@@ -117,13 +115,13 @@ class DeepCoolService : ServiceBase {
 		_computer.Accept(new UpdateVisitor());
 		var gpu = "";
 		foreach (var hardware in _computer.Hardware) {
-			Console.WriteLine($"{hardware.HardwareType}: {hardware.Name}");
+			Log($"{hardware.HardwareType}: {hardware.Name}");
 			var maxfan = 0f;
 			switch (hardware.HardwareType) {
 				case HardwareType.Motherboard:
 					foreach (var sub in hardware.SubHardware) {
 						if (sub.HardwareType is HardwareType.SuperIO) {
-							Console.WriteLine($"{sub.HardwareType}: {sub.Name}");
+							Log($"{sub.HardwareType}: {sub.Name}");
 							sub.Update();
 							foreach (var sensor in sub.Sensors) {
 								if (sensor.SensorType is SensorType.Fan) {
@@ -134,7 +132,7 @@ class DeepCoolService : ServiceBase {
 							}
 						}
 					}
-					Console.WriteLine($"CPU FAN: {maxfan}RPM");
+					LogInfo("CPU FAN", maxfan, "RPM");
 					_packet.WriteFanRPM(maxfan);
 					break;
 				case HardwareType.Cpu:
@@ -143,12 +141,12 @@ class DeepCoolService : ServiceBase {
 					foreach (var sensor in hardware.Sensors) {
 						if (sensor.Name is "CPU Package") {
 							if (sensor.SensorType is SensorType.Temperature) {
-								Console.WriteLine($"{sensor.Name}: {sensor.Value}°C");
+								LogSensor(sensor);
 								if (sensor.Value is float f) {
 									_packet.WriteCPUTemp(f);
 								}
 							} else if (sensor.SensorType is SensorType.Power) {
-								Console.WriteLine($"{sensor.Name}: {sensor.Value}W");
+								LogSensor(sensor);
 								if (sensor.Value is float f) {
 									_packet.WriteCPUPower(f);
 								}
@@ -159,7 +157,7 @@ class DeepCoolService : ServiceBase {
 								clockcount++;
 							}
 						} else if ((sensor.Name is "CPU Total") && (sensor.SensorType is SensorType.Load)) {
-							Console.WriteLine($"{sensor.Name}: {sensor.Value}%");
+							LogSensor(sensor);
 							if (sensor.Value is float f) {
 								_packet.WriteCPULoad(f);
 							}
@@ -167,7 +165,7 @@ class DeepCoolService : ServiceBase {
 					}
 					if (clockcount > 0) {
 						var cpuclock = clocksum / clockcount;
-						Console.WriteLine($"CPU Clock: {cpuclock}MHz");
+						LogInfo("CPU Package", cpuclock, "MHz");
 						_packet.WriteCPUClock(cpuclock);
 					}
 					break;
@@ -186,7 +184,6 @@ class DeepCoolService : ServiceBase {
 					WriteNvidiaGpu(hardware);
 					break;
 				default:
-					Console.WriteLine($"[{hardware.HardwareType}] {hardware.Name}");
 					break;
 			}
 		}
@@ -195,23 +192,23 @@ class DeepCoolService : ServiceBase {
 	unsafe void WriteNvidiaGpu(IHardware hardware) {
 		foreach (var sensor in hardware.Sensors) {
 			if ((sensor.Name is "GPU Package") && (sensor.SensorType is SensorType.Power)) {
-				Console.WriteLine($"GPU Package: {sensor.Value}W");
+				LogSensor(sensor);
 				if (sensor.Value is float f) {
 					_packet.WriteGPUPower(f);
 				}
 			} else if (sensor.Name is "GPU Core") {
 				if (sensor.SensorType is SensorType.Temperature) {
-					Console.WriteLine($"GPU Core: {sensor.Value}°C");
+					LogSensor(sensor);
 					if (sensor.Value is float f) {
 						_packet.WriteGPUTemp(f);
 					}
 				} else if (sensor.SensorType is SensorType.Clock) {
-					Console.WriteLine($"GPU Core: {sensor.Value}MHz");
+					LogSensor(sensor);
 					if (sensor.Value is float f) {
 						_packet.WriteGPUClock(f);
 					}
 				} else if (sensor.SensorType is SensorType.Load) {
-					Console.WriteLine($"GPU Core: {sensor.Value}%");
+					LogSensor(sensor);
 					if (sensor.Value is float f) {
 						_packet.WriteGPULoad(f);
 					}
@@ -252,6 +249,37 @@ class DeepCoolService : ServiceBase {
 			sum += _bytes[i];
 		}
 		return sum;
+	}
+
+	[System.Diagnostics.Conditional("DEBUG")]
+	static void Log(string msg) => Console.WriteLine(msg);
+
+	[System.Diagnostics.Conditional("DEBUG")]
+	static void LogInfo(string name, float? value, string unit) {
+		Log($"{name}: {value}{unit}");
+	}
+
+	[System.Diagnostics.Conditional("DEBUG")]
+	static void LogSensor(ISensor sensor) {
+		switch(sensor.SensorType) {
+			case SensorType.Temperature:
+				LogInfo(sensor.Name, sensor.Value, "°C");
+				break;
+			case SensorType.Power:
+				LogInfo(sensor.Name, sensor.Value, "W");
+				break;
+			case SensorType.Load:
+				LogInfo(sensor.Name, sensor.Value, "%");
+				break;
+			case SensorType.Clock:
+				LogInfo(sensor.Name, sensor.Value, "MHz");
+				break;
+		}
+	}
+
+	[System.Diagnostics.Conditional("DEBUG")]
+	static void LogPacket(CH140Packet packet) {
+		Console.WriteLine(packet);
 	}
 }
 
